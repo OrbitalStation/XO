@@ -93,7 +93,8 @@ unsafe fn pattern(pat: (u8, u8, u8)) -> AIPR {
         };
 
         h1(0)?;
-        h1(AI)
+        h1(AI)?;
+        h1(PLAYER)
     };
 
     if FIELD[0][0] == pat.0 {
@@ -106,18 +107,21 @@ unsafe fn pattern(pat: (u8, u8, u8)) -> AIPR {
         if FIELD[1][1] == pat.1 && FIELD[2][2] == pat.2 {
             return locate(((0, 0), (1, 1), (2, 2)))
         }
-    } else if FIELD[2][0] == pat.0 {
+    }
+    if FIELD[2][0] == pat.0 {
         if FIELD[2][1] == pat.1 && FIELD[2][2] == pat.2 {
             return locate(((2, 0), (2, 1), (2, 2)))
         }
         if FIELD[1][1] == pat.1 && FIELD[0][2] == pat.2 {
             return locate(((2, 0), (1, 1), (0, 2)))
         }
-    } else if FIELD[2][2] == pat.0 {
+    }
+    if FIELD[2][2] == pat.0 {
         if FIELD[1][2] == pat.1 && FIELD[0][2] == pat.2 {
             return locate(((2, 2), (1, 2), (0, 2)))
         }
-    } else if FIELD[1][0] == pat.0 && FIELD[1][1] == pat.1 && FIELD[1][2] == pat.2 {
+    }
+    if FIELD[1][0] == pat.0 && FIELD[1][1] == pat.1 && FIELD[1][2] == pat.2 {
         return locate(((1, 0), (1, 1), (1, 2)));
     } else if FIELD[0][1] == pat.0 && FIELD[1][1] == pat.1 && FIELD[2][1] == pat.2 {
         return locate(((0, 1), (1, 1), (2, 1)));
@@ -201,6 +205,8 @@ fn main() { unsafe {
         }
         buf.clear()
     }
+
+    change(0, 0, 0);
 
     let mut was = PLAYER == 1;
     loop {
