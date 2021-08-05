@@ -2,31 +2,46 @@
 #![feature(control_flow_enum)]
 #![feature(const_raw_ptr_deref)]
 
-use std::ops::{Try, ControlFlow, FromResidual};
-use std::process::exit;
+use std::{
+    ops::{Try, ControlFlow, FromResidual},
+    process::exit,
+    fmt
+};
 use rand::Rng;
 
-static mut FIELD: [[u8; 3]; 3] = [[0; 3]; 3];
-static mut PLAYER: u8 = 0;
-static mut AI: u8 = 0;
+type Pos = u8;
 
-fn utoc(c: u8) -> char {
-    match c {
-        0 => '_',
-        1 => 'X',
-        _ => 'O'
+#[derive(Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
+enum Cell {
+    Empty,
+    X,
+    O
+}
+
+impl fmt::Display for Cell {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_char(match self {
+            Self::Empty => '_',
+            Self::X => 'X',
+            Self::O => 'O'
+        })
     }
 }
 
-unsafe fn change(x: usize, y: usize, c: u8) -> bool {
+static mut FIELD: [[Cell; 3]; 3] = [[Cell::Empty; 3]; 3];
+static mut PLAYER: Cell = Cell::Empty;
+static mut AI: Cell = Cell::Empty;
+
+unsafe fn change(x: usize, y: usize, c: Cell) -> bool {
     let one = |_y: usize, no: bool| {
         if y == _y && no {
-            FIELD[x][y] = c
+            FIELD[x][y] = Cell
         }
-        print!("{} {} {}", utoc(FIELD[0][_y]), utoc(FIELD[1][_y]), utoc(FIELD[2][_y]));
+        print!("{} {} {}", FIELD[0][_y], FIELD[1][_y], FIELD[2][_y]);
     };
 
-    if FIELD[x][y] != 0 {
+    if FIELD[x][y] != Cell::Empty {
         println!("Cell is not empty!");
         return false
     }
@@ -47,13 +62,13 @@ unsafe fn change(x: usize, y: usize, c: u8) -> bool {
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, PartialEq, Eq)]
-enum AIPR {
-    Found(u8, u8),
+enum FoundResult {
+    Found(Cell, Cell),
     No
 }
 
-impl AIPR {
-    pub fn is_found(self) -> bool {
+impl FoundResult {
+    pub fn is_found(&self) -> bool {
         match self {
             Self::Found(_, _) => true,
             Self::No => false
@@ -61,15 +76,15 @@ impl AIPR {
     }
 }
 
-impl FromResidual for AIPR {
-    fn from_residual(residual: (u8, u8)) -> Self {
+impl FromResidual for FoundResult {
+    fn from_residual(residual: (Cell, Cell)) -> Self {
         Self::Found(residual.0, residual.1)
     }
 }
 
-impl Try for AIPR {
+impl Try for FoundResult {
     type Output = ();
-    type Residual = (u8, u8);
+    type Residual = (Cell, Cell);
 
     fn from_output(_: Self::Output) -> Self {
         Self::No
@@ -77,64 +92,66 @@ impl Try for AIPR {
 
     fn branch(self) -> ControlFlow <Self::Residual, Self::Output> {
         match self {
-            AIPR::Found(x, y) => ControlFlow::Break((x, y)),
-            AIPR::No => ControlFlow::Continue(())
+            FoundResult::Found(x, y) => ControlFlow::Break((x, y)),
+            FoundResult::No => ControlFlow::Continue(())
         }
     }
 }
 
-unsafe fn pattern(pat: (u8, u8, u8)) -> AIPR {
-    let locate = |pos: ((u8, u8), (u8, u8), (u8, u8))| -> AIPR {
-        let h1 = |x: u8| -> AIPR {
-            if pat.0 == x { AIPR::Found(pos.0.0, pos.0.1) }
-            else if pat.1 == x { AIPR::Found(pos.1.0, pos.1.1) }
-            else if pat.2 == x { AIPR::Found(pos.2.0, pos.2.1) }
-            else { AIPR::No }
+unsafe fn pattern(pat: (Cell, Cell, Cell)) -> FoundResult {
+    use Cell::*;
+
+    let locate = |pos: ((Cell, Cell), (Cell, Cell), (Cell, Cell))| -> FoundResult {
+        let h1 = |x: Cell| -> FoundResult {
+            if pat.0 == x { FoundResult::Found(pos.0.0, pos.0.1) }
+            else if pat.1 == x { FoundResult::Found(pos.1.0, pos.1.1) }
+            else if pat.2 == x { FoundResult::Found(pos.2.0, pos.2.1) }
+            else { FoundResult::No }
         };
 
-        h1(0)?;
+        h1(Cell::Empty)?;
         h1(AI)?;
         h1(PLAYER)
     };
 
     if FIELD[0][0] == pat.0 {
         if FIELD[1][0] == pat.1 && FIELD[2][0] == pat.2 {
-            return locate(((0, 0), (1, 0), (2, 0)))
+            return locate(((Empty, Empty), (X, Empty), (O, Empty)))
         }
         if FIELD[0][1] == pat.1 && FIELD[0][2] == pat.2 {
-            return locate(((0, 0), (0, 1), (0, 2)))
+            return locate(((Empty, Empty), (Empty, X), (Empty, O)))
         }
         if FIELD[1][1] == pat.1 && FIELD[2][2] == pat.2 {
-            return locate(((0, 0), (1, 1), (2, 2)))
+            return locate(((Empty, Empty), (X, X), (O, O)))
         }
     }
     if FIELD[2][0] == pat.0 {
         if FIELD[2][1] == pat.1 && FIELD[2][2] == pat.2 {
-            return locate(((2, 0), (2, 1), (2, 2)))
+            return locate(((O, Empty), (O, X), (O, O)))
         }
         if FIELD[1][1] == pat.1 && FIELD[0][2] == pat.2 {
-            return locate(((2, 0), (1, 1), (0, 2)))
+            return locate(((O, Empty), (X, X), (Empty, O)))
         }
     }
     if FIELD[2][2] == pat.0 {
         if FIELD[1][2] == pat.1 && FIELD[0][2] == pat.2 {
-            return locate(((2, 2), (1, 2), (0, 2)))
+            return locate(((O, O), (X, O), (Empty, O)))
         }
     }
     if FIELD[1][0] == pat.0 && FIELD[1][1] == pat.1 && FIELD[1][2] == pat.2 {
-        return locate(((1, 0), (1, 1), (1, 2)));
+        return locate(((X, Empty), (X, X), (X, O)));
     } else if FIELD[0][1] == pat.0 && FIELD[1][1] == pat.1 && FIELD[2][1] == pat.2 {
-        return locate(((0, 1), (1, 1), (2, 1)));
+        return locate(((Empty, X), (X, X), (O, X)));
     }
-    AIPR::No
+    FoundResult::No
 }
 
-unsafe fn rand_cell() -> AIPR {
+unsafe fn rand_cell() -> FoundResult {
     let mut cells = Vec::new();
 
-    let lambdas = |cells: &mut Vec <(u8, u8)>| {
-        let check = |cells: &mut Vec <(u8, u8)>, x: u8, y: u8| {
-            if FIELD[x as usize][y as usize] == 0 {
+    let lambdas = |cells: &mut Vec <(Pos, Pos)>| {
+        let check = |cells: &mut Vec <(Pos, Pos)>, x: Pos, y: Pos| {
+            if FIELD[x as usize][y as usize] == Cell::Empty {
                 cells.push((x, y))
             }
         };
@@ -145,9 +162,9 @@ unsafe fn rand_cell() -> AIPR {
         check(cells, 2, 2);
     };
 
-    let ordinary = |cells: &mut Vec <(u8, u8)>| {
-        for x in 0u8..3 {
-            for y in 0u8..3 {
+    let ordinary = |cells: &mut Vec <(Pos, Pos)>| {
+        for x in 0..(3 as Pos) {
+            for y in 0..(3 as Pos) {
                 if FIELD[x as usize][y as usize] == 0 {
                     cells.push((x, y))
                 }
@@ -155,7 +172,7 @@ unsafe fn rand_cell() -> AIPR {
         }
     };
 
-    if FIELD[1][1] == 0 { return AIPR::Found(1, 1) }
+    if FIELD[1][1] == 0 { return FoundResult::Found(1, 1) }
 
     if pattern((PLAYER, AI, PLAYER)).is_found() {
         { ordinary(&mut cells); }
@@ -165,15 +182,15 @@ unsafe fn rand_cell() -> AIPR {
         if cells.is_empty() { ordinary(&mut cells) }
     }
 
-    if cells.is_empty() { AIPR::No }
+    if cells.is_empty() { FoundResult::No }
     else {
         let mut rng = rand::thread_rng();
         let x = rng.gen_range(0..cells.len());
-        AIPR::Found(cells[x].0, cells[x].1)
+        FoundResult::Found(cells[x].0, cells[x].1)
     }
 }
 
-unsafe fn ai() -> AIPR {
+unsafe fn ai() -> FoundResult {
 
     pattern((AI, 0, AI))?;
     pattern((AI, AI, 0))?;
@@ -186,7 +203,7 @@ unsafe fn ai() -> AIPR {
     rand_cell()
 }
 
-fn main() { unsafe {
+unsafe fn game() {
     let mut buf = String::new();
 
     println!("Enter type(X\\O):");
@@ -215,12 +232,18 @@ fn main() { unsafe {
         if was {
             if !rand_cell().is_found() {
                 println!("~~~ Tie! ~~~");
-                exit(0);
+                return
             }
 
-            println!("Enter cell(x y(each from 0 to 2), e.g. 0 1)");
+            println!("Enter cell(x y(each from 0 to 2), e.g. 0 1) or command(quit | exit)");
             let _ = std::io::stdin().read_line(&mut buf);
-            if buf.len() != 4 { continue }
+            if buf.len() != 4 {
+                if buf == "quit\n" || buf == "exit\n" {
+                    println!("Exiting...");
+                    exit(0);
+                }
+                continue
+            }
             let _0 = buf.chars().nth(0).unwrap() as u8;
             let _2 = buf.chars().nth(2).unwrap() as u8;
             if (_0 < ('0' as u8)) || (_0 > ('2' as u8)) { continue }
@@ -229,7 +252,7 @@ fn main() { unsafe {
             if !change((_0 - ('0' as u8)) as usize, (_2 - ('0' as u8)) as usize, PLAYER) { continue }
             if pattern((PLAYER, PLAYER, PLAYER)).is_found() {
                 println!("~~~ You win! ~~~");
-                exit(0);
+                return
             }
         } else {
             was = true
@@ -237,16 +260,36 @@ fn main() { unsafe {
 
         println!("AI turn:");
         let (x, y) = match ai() {
-            AIPR::Found(x, y) => (x, y),
-            AIPR::No => {
+            FoundResult::Found(x, y) => (x, y),
+            FoundResult::No => {
                 println!("~~~ Tie! ~~~");
-                exit(0);
+                return
             }
         };
         change(x as usize, y as usize, AI);
         if pattern((AI, AI, AI)).is_found() {
             println!("~~~ AI win! ~~~");
-            exit(0);
+            return
         }
     }
-} }
+}
+
+fn main() {
+    loop {
+        unsafe { game() }
+        println!("Would you like to play one more game?(y/n)");
+        {
+            let mut buf = String::new();
+            let _ = std::io::stdin().read_line(&mut buf);
+            if buf != "\n" && buf != "Y\n" && buf != "y\n" {
+                println!("Goodbye!");
+                break
+            }
+            unsafe {
+                FIELD = [[0; 3]; 3];
+                PLAYER = 0;
+                AI = 0
+            }
+        }
+    }
+}
