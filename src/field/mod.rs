@@ -3,6 +3,8 @@ mod impls;
 
 use crate::{Cell, Pos, FoundResult};
 
+pub use types::{RandomIter, AngleRandomIter, FullRandomIter};
+
 #[inline]
 pub fn create(width: Pos, height: Pos) {
     unsafe { impls::create(width, height) }
@@ -36,4 +38,14 @@ pub fn cmp(x: Pos, y: Pos, v: Cell) -> bool {
 #[inline]
 pub fn pattern(a: Cell, b: Cell, c: Cell) -> FoundResult {
     unsafe { impls::pattern((a, b, c)) }
+}
+
+#[inline]
+pub fn random(iter: RandomIter) -> FoundResult {
+    unsafe { impls::random(iter) }
+}
+
+#[inline]
+pub fn show_changes(x: Pos, y: Pos, c: Cell) -> bool {
+    unsafe { impls::show_changes(x, y, c) }
 }

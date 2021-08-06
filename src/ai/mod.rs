@@ -16,3 +16,8 @@ pub fn set() {
 pub fn get() -> Cell {
     unsafe { impls::get() }
 }
+
+#[inline]
+pub fn turn() {
+    unsafe { impls::turn() }
+}

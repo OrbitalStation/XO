@@ -1,9 +1,11 @@
+use rand::Rng;
 use crate::{ai, player};
 use super::{
     types::Field,
     Cell,
     Pos,
-    FoundResult
+    FoundResult,
+    RandomIter
 };
 
 static mut FIELD: Field = Field::stub();
@@ -89,4 +91,46 @@ pub unsafe fn pattern(pat: (Cell, Cell, Cell)) -> FoundResult {
     }
 
     FoundResult::No
+}
+
+pub unsafe fn random(mut iter: RandomIter) -> FoundResult {
+    let mut cells = Vec::new();
+
+    while let Some(x) = iter.rand() {
+        cells.push(x)
+    }
+
+    if cells.is_empty() { return FoundResult::No }
+
+    let mut rng = rand::thread_rng();
+    let x = rng.gen_range(0..cells.len());
+    FoundResult::Found(cells[x].0, cells[x].1)
+}
+
+pub unsafe fn show_changes(x: Pos, y: Pos, c: Cell) -> bool {
+    let one = |_y: Pos, no: bool| {
+        if y == _y && no {
+            set(x, y, c)
+        }
+        print!("{} {} {}", get(0, _y), get(1, _y), get(2, _y));
+    };
+
+    if !cmp(x, y, Cell::Empty) {
+        println!("Cell is not empty!");
+        return false
+    }
+
+    println!("=======================");
+    for _y in 0..3 {
+        print!("\t");
+        one(_y, false);
+        print!("{}", match _y {
+            1 => " => ",
+            _ => "    "
+        });
+        one(_y, true);
+        println!()
+    }
+    println!("\n=======================");
+    true
 }
