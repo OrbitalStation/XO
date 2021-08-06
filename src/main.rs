@@ -4,44 +4,27 @@
 
 use std::{
     ops::{Try, ControlFlow, FromResidual},
-    process::exit,
-    fmt
+    process::exit
 };
 use rand::Rng;
+use xo::{
+    field,
+    Pos,
+    Cell
+};
 
-type Pos = u8;
-
-#[derive(Copy, Clone, Eq, PartialEq)]
-#[repr(u8)]
-enum Cell {
-    Empty,
-    X,
-    O
-}
-
-impl fmt::Display for Cell {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_char(match self {
-            Self::Empty => '_',
-            Self::X => 'X',
-            Self::O => 'O'
-        })
-    }
-}
-
-static mut FIELD: [[Cell; 3]; 3] = [[Cell::Empty; 3]; 3];
 static mut PLAYER: Cell = Cell::Empty;
 static mut AI: Cell = Cell::Empty;
 
-unsafe fn change(x: usize, y: usize, c: Cell) -> bool {
-    let one = |_y: usize, no: bool| {
+unsafe fn change(x: Pos, y: Pos, c: Cell) -> bool {
+    let one = |_y: Pos, no: bool| {
         if y == _y && no {
-            FIELD[x][y] = Cell
+            field::set(x, y, c)
         }
-        print!("{} {} {}", FIELD[0][_y], FIELD[1][_y], FIELD[2][_y]);
+        print!("{} {} {}", field::get(0, _y), field::get(1, _y), field::get(2, _y));
     };
 
-    if FIELD[x][y] != Cell::Empty {
+    if !field::cmp(x, y, Cell::Empty) {
         println!("Cell is not empty!");
         return false
     }
@@ -63,7 +46,7 @@ unsafe fn change(x: usize, y: usize, c: Cell) -> bool {
 
 #[derive(Copy, Clone, Ord, PartialOrd, PartialEq, Eq)]
 enum FoundResult {
-    Found(Cell, Cell),
+    Found(Pos, Pos),
     No
 }
 
@@ -77,14 +60,14 @@ impl FoundResult {
 }
 
 impl FromResidual for FoundResult {
-    fn from_residual(residual: (Cell, Cell)) -> Self {
+    fn from_residual(residual: (Pos, Pos)) -> Self {
         Self::Found(residual.0, residual.1)
     }
 }
 
 impl Try for FoundResult {
     type Output = ();
-    type Residual = (Cell, Cell);
+    type Residual = (Pos, Pos);
 
     fn from_output(_: Self::Output) -> Self {
         Self::No
@@ -99,9 +82,7 @@ impl Try for FoundResult {
 }
 
 unsafe fn pattern(pat: (Cell, Cell, Cell)) -> FoundResult {
-    use Cell::*;
-
-    let locate = |pos: ((Cell, Cell), (Cell, Cell), (Cell, Cell))| -> FoundResult {
+    let locate = |pos: ((Pos, Pos), (Pos, Pos), (Pos, Pos))| -> FoundResult {
         let h1 = |x: Cell| -> FoundResult {
             if pat.0 == x { FoundResult::Found(pos.0.0, pos.0.1) }
             else if pat.1 == x { FoundResult::Found(pos.1.0, pos.1.1) }
@@ -114,34 +95,34 @@ unsafe fn pattern(pat: (Cell, Cell, Cell)) -> FoundResult {
         h1(PLAYER)
     };
 
-    if FIELD[0][0] == pat.0 {
-        if FIELD[1][0] == pat.1 && FIELD[2][0] == pat.2 {
-            return locate(((Empty, Empty), (X, Empty), (O, Empty)))
+    if field::cmp(0, 0, pat.0) {
+        if field::cmp(1, 0, pat.1) && field::cmp(2, 0, pat.2){
+            return locate(((0, 0), (1, 0), (2, 0)))
         }
-        if FIELD[0][1] == pat.1 && FIELD[0][2] == pat.2 {
-            return locate(((Empty, Empty), (Empty, X), (Empty, O)))
+        if field::cmp(0, 1, pat.1) && field::cmp(0, 2, pat.2) {
+            return locate(((0, 0), (0, 1), (0, 2)))
         }
-        if FIELD[1][1] == pat.1 && FIELD[2][2] == pat.2 {
-            return locate(((Empty, Empty), (X, X), (O, O)))
-        }
-    }
-    if FIELD[2][0] == pat.0 {
-        if FIELD[2][1] == pat.1 && FIELD[2][2] == pat.2 {
-            return locate(((O, Empty), (O, X), (O, O)))
-        }
-        if FIELD[1][1] == pat.1 && FIELD[0][2] == pat.2 {
-            return locate(((O, Empty), (X, X), (Empty, O)))
+        if field::cmp(1, 1, pat.1) && field::cmp(2, 2, pat.2) {
+            return locate(((0, 0), (1, 1), (2, 2)))
         }
     }
-    if FIELD[2][2] == pat.0 {
-        if FIELD[1][2] == pat.1 && FIELD[0][2] == pat.2 {
-            return locate(((O, O), (X, O), (Empty, O)))
+    if field::cmp(2, 0, pat.0) {
+        if field::cmp(2, 1, pat.1) && field::cmp(2, 2, pat.2) {
+            return locate(((2, 0), (2, 1), (2, 2)))
+        }
+        if field::cmp(1, 1, pat.1) && field::cmp(0, 2, pat.2) {
+            return locate(((2, 0), (1, 1), (0, 2)))
         }
     }
-    if FIELD[1][0] == pat.0 && FIELD[1][1] == pat.1 && FIELD[1][2] == pat.2 {
-        return locate(((X, Empty), (X, X), (X, O)));
-    } else if FIELD[0][1] == pat.0 && FIELD[1][1] == pat.1 && FIELD[2][1] == pat.2 {
-        return locate(((Empty, X), (X, X), (O, X)));
+    if field::cmp(2, 2, pat.0) {
+        if field::cmp(1, 2, pat.1) && field::cmp(0, 2, pat.2) {
+            return locate(((2, 2), (1, 2), (0, 2)))
+        }
+    }
+    if field::cmp(1, 0, pat.0) && field::cmp(1, 1, pat.1) && field::cmp(1, 2, pat.2) {
+        return locate(((1, 0), (1, 1), (1, 2)));
+    } else if field::cmp(0, 1, pat.0) && field::cmp(1, 1, pat.1) && field::cmp(2, 1, pat.2) {
+        return locate(((0, 1), (1, 1), (2, 1)));
     }
     FoundResult::No
 }
@@ -151,7 +132,7 @@ unsafe fn rand_cell() -> FoundResult {
 
     let lambdas = |cells: &mut Vec <(Pos, Pos)>| {
         let check = |cells: &mut Vec <(Pos, Pos)>, x: Pos, y: Pos| {
-            if FIELD[x as usize][y as usize] == Cell::Empty {
+            if field::cmp(x, y, Cell::Empty) {
                 cells.push((x, y))
             }
         };
@@ -165,14 +146,14 @@ unsafe fn rand_cell() -> FoundResult {
     let ordinary = |cells: &mut Vec <(Pos, Pos)>| {
         for x in 0..(3 as Pos) {
             for y in 0..(3 as Pos) {
-                if FIELD[x as usize][y as usize] == 0 {
+                if field::cmp(x, y, Cell::Empty) {
                     cells.push((x, y))
                 }
             }
         }
     };
 
-    if FIELD[1][1] == 0 { return FoundResult::Found(1, 1) }
+    if field::cmp(1, 1, Cell::Empty) { return FoundResult::Found(1, 1) }
 
     if pattern((PLAYER, AI, PLAYER)).is_found() {
         { ordinary(&mut cells); }
@@ -191,14 +172,15 @@ unsafe fn rand_cell() -> FoundResult {
 }
 
 unsafe fn ai() -> FoundResult {
+    use Cell::Empty;
 
-    pattern((AI, 0, AI))?;
-    pattern((AI, AI, 0))?;
-    pattern((0, AI, AI))?;
+    pattern((AI, Empty, AI))?;
+    pattern((AI, AI, Empty))?;
+    pattern((Empty, AI, AI))?;
 
-    pattern((PLAYER, 0, PLAYER))?;
-    pattern((PLAYER, PLAYER, 0))?;
-    pattern((0, PLAYER, PLAYER))?;
+    pattern((PLAYER, Empty, PLAYER))?;
+    pattern((PLAYER, PLAYER, Empty))?;
+    pattern((Empty, PLAYER, PLAYER))?;
 
     rand_cell()
 }
@@ -206,26 +188,28 @@ unsafe fn ai() -> FoundResult {
 unsafe fn game() {
     let mut buf = String::new();
 
+    field::create(3, 3);
+
     println!("Enter type(X\\O):");
-    while PLAYER == 0 {
+    while PLAYER == Cell::Empty {
         let _ = std::io::stdin().read_line(&mut buf);
         match buf.as_str() {
             "X\n" => {
-                PLAYER = 1;
-                AI = 2;
+                PLAYER = Cell::X;
+                AI = Cell::O;
             },
             "O\n" => {
-                PLAYER = 2;
-                AI = 1;
+                PLAYER = Cell::O;
+                AI = Cell::X;
             },
             _ => println!("Wrong, try again.")
         }
         buf.clear()
     }
 
-    change(0, 0, 0);
+    change(0, 0, Cell::Empty);
 
-    let mut was = PLAYER == 1;
+    let mut was = PLAYER == Cell::X;
     loop {
         buf.clear();
 
@@ -249,7 +233,7 @@ unsafe fn game() {
             if (_0 < ('0' as u8)) || (_0 > ('2' as u8)) { continue }
             if (_2 < ('0' as u8)) || (_2 > ('2' as u8)) { continue }
 
-            if !change((_0 - ('0' as u8)) as usize, (_2 - ('0' as u8)) as usize, PLAYER) { continue }
+            if !change(_0 - ('0' as u8), _2 - ('0' as u8), PLAYER) { continue }
             if pattern((PLAYER, PLAYER, PLAYER)).is_found() {
                 println!("~~~ You win! ~~~");
                 return
@@ -266,7 +250,7 @@ unsafe fn game() {
                 return
             }
         };
-        change(x as usize, y as usize, AI);
+        change(x, y, AI);
         if pattern((AI, AI, AI)).is_found() {
             println!("~~~ AI win! ~~~");
             return
@@ -286,9 +270,8 @@ fn main() {
                 break
             }
             unsafe {
-                FIELD = [[0; 3]; 3];
-                PLAYER = 0;
-                AI = 0
+                PLAYER = Cell::Empty;
+                AI = Cell::Empty
             }
         }
     }
