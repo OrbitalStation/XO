@@ -1,7 +1,7 @@
 mod types;
 mod impls;
 
-use crate::{Cell, Pos};
+use crate::{Cell, Pos, FoundResult};
 
 #[inline]
 pub fn create(width: Pos, height: Pos) {
@@ -31,4 +31,9 @@ pub fn height() -> Pos {
 #[inline]
 pub fn cmp(x: Pos, y: Pos, v: Cell) -> bool {
     unsafe { impls::cmp(x, y, v) }
+}
+
+#[inline]
+pub fn pattern(a: Cell, b: Cell, c: Cell) -> FoundResult {
+    unsafe { impls::pattern((a, b, c)) }
 }

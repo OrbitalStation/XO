@@ -2,21 +2,18 @@
 #![feature(control_flow_enum)]
 #![feature(const_raw_ptr_deref)]
 
-use std::{
-    ops::{Try, ControlFlow, FromResidual},
-    process::exit
-};
+use std::process::exit;
 use rand::Rng;
 use xo::{
     field,
+    player,
+    ai,
     Pos,
-    Cell
+    Cell,
+    FoundResult
 };
 
-static mut PLAYER: Cell = Cell::Empty;
-static mut AI: Cell = Cell::Empty;
-
-unsafe fn change(x: Pos, y: Pos, c: Cell) -> bool {
+fn change(x: Pos, y: Pos, c: Cell) -> bool {
     let one = |_y: Pos, no: bool| {
         if y == _y && no {
             field::set(x, y, c)
@@ -44,90 +41,7 @@ unsafe fn change(x: Pos, y: Pos, c: Cell) -> bool {
     true
 }
 
-#[derive(Copy, Clone, Ord, PartialOrd, PartialEq, Eq)]
-enum FoundResult {
-    Found(Pos, Pos),
-    No
-}
-
-impl FoundResult {
-    pub fn is_found(&self) -> bool {
-        match self {
-            Self::Found(_, _) => true,
-            Self::No => false
-        }
-    }
-}
-
-impl FromResidual for FoundResult {
-    fn from_residual(residual: (Pos, Pos)) -> Self {
-        Self::Found(residual.0, residual.1)
-    }
-}
-
-impl Try for FoundResult {
-    type Output = ();
-    type Residual = (Pos, Pos);
-
-    fn from_output(_: Self::Output) -> Self {
-        Self::No
-    }
-
-    fn branch(self) -> ControlFlow <Self::Residual, Self::Output> {
-        match self {
-            FoundResult::Found(x, y) => ControlFlow::Break((x, y)),
-            FoundResult::No => ControlFlow::Continue(())
-        }
-    }
-}
-
-unsafe fn pattern(pat: (Cell, Cell, Cell)) -> FoundResult {
-    let locate = |pos: ((Pos, Pos), (Pos, Pos), (Pos, Pos))| -> FoundResult {
-        let h1 = |x: Cell| -> FoundResult {
-            if pat.0 == x { FoundResult::Found(pos.0.0, pos.0.1) }
-            else if pat.1 == x { FoundResult::Found(pos.1.0, pos.1.1) }
-            else if pat.2 == x { FoundResult::Found(pos.2.0, pos.2.1) }
-            else { FoundResult::No }
-        };
-
-        h1(Cell::Empty)?;
-        h1(AI)?;
-        h1(PLAYER)
-    };
-
-    if field::cmp(0, 0, pat.0) {
-        if field::cmp(1, 0, pat.1) && field::cmp(2, 0, pat.2){
-            return locate(((0, 0), (1, 0), (2, 0)))
-        }
-        if field::cmp(0, 1, pat.1) && field::cmp(0, 2, pat.2) {
-            return locate(((0, 0), (0, 1), (0, 2)))
-        }
-        if field::cmp(1, 1, pat.1) && field::cmp(2, 2, pat.2) {
-            return locate(((0, 0), (1, 1), (2, 2)))
-        }
-    }
-    if field::cmp(2, 0, pat.0) {
-        if field::cmp(2, 1, pat.1) && field::cmp(2, 2, pat.2) {
-            return locate(((2, 0), (2, 1), (2, 2)))
-        }
-        if field::cmp(1, 1, pat.1) && field::cmp(0, 2, pat.2) {
-            return locate(((2, 0), (1, 1), (0, 2)))
-        }
-    }
-    if field::cmp(2, 2, pat.0) {
-        if field::cmp(1, 2, pat.1) && field::cmp(0, 2, pat.2) {
-            return locate(((2, 2), (1, 2), (0, 2)))
-        }
-    }
-    if field::cmp(1, 0, pat.0) && field::cmp(1, 1, pat.1) && field::cmp(1, 2, pat.2) {
-        return locate(((1, 0), (1, 1), (1, 2)));
-    } else if field::cmp(0, 1, pat.0) && field::cmp(1, 1, pat.1) && field::cmp(2, 1, pat.2) {
-        return locate(((0, 1), (1, 1), (2, 1)));
-    }
-    FoundResult::No
-}
-
-unsafe fn rand_cell() -> FoundResult {
+fn rand_cell() -> FoundResult {
     let mut cells = Vec::new();
 
     let lambdas = |cells: &mut Vec <(Pos, Pos)>| {
@@ -155,7 +69,7 @@ unsafe fn rand_cell() -> FoundResult {
 
     if field::cmp(1, 1, Cell::Empty) { return FoundResult::Found(1, 1) }
 
-    if pattern((PLAYER, AI, PLAYER)).is_found() {
+    if field::pattern(player::get(), ai::get(), player::get()).is_found() {
         { ordinary(&mut cells); }
         if cells.is_empty() { lambdas(&mut cells) }
     } else {
@@ -171,45 +85,31 @@ unsafe fn rand_cell() -> FoundResult {
     }
 }
 
-unsafe fn ai() -> FoundResult {
+fn ai() -> FoundResult {
     use Cell::Empty;
 
-    pattern((AI, Empty, AI))?;
-    pattern((AI, AI, Empty))?;
-    pattern((Empty, AI, AI))?;
+    field::pattern(ai::get(), Empty, ai::get())?;
+    field::pattern(ai::get(), ai::get(), Empty)?;
+    field::pattern(Empty, ai::get(), ai::get())?;
 
-    pattern((PLAYER, Empty, PLAYER))?;
-    pattern((PLAYER, PLAYER, Empty))?;
-    pattern((Empty, PLAYER, PLAYER))?;
+    field::pattern(player::get(), Empty, player::get())?;
+    field::pattern(player::get(), player::get(), Empty)?;
+    field::pattern(Empty, player::get(), player::get())?;
 
     rand_cell()
 }
 
-unsafe fn game() {
+fn game() {
     let mut buf = String::new();
 
     field::create(3, 3);
 
-    println!("Enter type(X\\O):");
-    while PLAYER == Cell::Empty {
-        let _ = std::io::stdin().read_line(&mut buf);
-        match buf.as_str() {
-            "X\n" => {
-                PLAYER = Cell::X;
-                AI = Cell::O;
-            },
-            "O\n" => {
-                PLAYER = Cell::O;
-                AI = Cell::X;
-            },
-            _ => println!("Wrong, try again.")
-        }
-        buf.clear()
-    }
+    player::ask();
+    ai::set();
 
     change(0, 0, Cell::Empty);
 
-    let mut was = PLAYER == Cell::X;
+    let mut was = player::get() == Cell::X;
     loop {
         buf.clear();
 
@@ -233,8 +133,8 @@ unsafe fn game() {
             if (_0 < ('0' as u8)) || (_0 > ('2' as u8)) { continue }
             if (_2 < ('0' as u8)) || (_2 > ('2' as u8)) { continue }
 
-            if !change(_0 - ('0' as u8), _2 - ('0' as u8), PLAYER) { continue }
-            if pattern((PLAYER, PLAYER, PLAYER)).is_found() {
+            if !change(_0 - ('0' as u8), _2 - ('0' as u8), player::get()) { continue }
+            if field::pattern(player::get(), player::get(), player::get()).is_found() {
                 println!("~~~ You win! ~~~");
                 return
             }
@@ -250,8 +150,8 @@ unsafe fn game() {
                 return
             }
         };
-        change(x, y, AI);
-        if pattern((AI, AI, AI)).is_found() {
+        change(x, y, ai::get());
+        if field::pattern(ai::get(), ai::get(), ai::get()).is_found() {
             println!("~~~ AI win! ~~~");
             return
         }
@@ -260,19 +160,17 @@ unsafe fn game() {
 
 fn main() {
     loop {
-        unsafe { game() }
+        game();
+
         println!("Would you like to play one more game?(y/n)");
-        {
-            let mut buf = String::new();
-            let _ = std::io::stdin().read_line(&mut buf);
-            if buf != "\n" && buf != "Y\n" && buf != "y\n" {
-                println!("Goodbye!");
-                break
-            }
-            unsafe {
-                PLAYER = Cell::Empty;
-                AI = Cell::Empty
-            }
+        let mut buf = String::new();
+        let _ = std::io::stdin().read_line(&mut buf);
+        if buf != "\n" && buf != "Y\n" && buf != "y\n" {
+            println!("Goodbye!");
+            break
         }
+        player::reset();
+        ai::reset()
+
     }
 }

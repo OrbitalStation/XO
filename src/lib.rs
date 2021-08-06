@@ -4,5 +4,7 @@
 
 mod types;
 pub mod field;
+pub mod player;
+pub mod ai;
 
-pub use types::{Pos, Cell};
+pub use types::{Pos, Cell, FoundResult};
