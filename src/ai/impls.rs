@@ -39,8 +39,6 @@ pub unsafe fn get() -> Cell {
 }
 
 pub unsafe fn turn() {
-    use Cell::Empty;
-
     println!("AI turn:");
 
     let (x, y) = match turn_impl() {

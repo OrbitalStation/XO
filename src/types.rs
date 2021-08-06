@@ -13,6 +13,20 @@ pub enum Cell {
     O
 }
 
+impl Cell {
+    pub const fn is_empty(&self) -> bool {
+        matches!{self, Self::Empty}
+    }
+
+    pub const fn is_x(&self) -> bool {
+        matches!{self, Self::X}
+    }
+
+    pub const fn is_o(&self) -> bool {
+        matches!{self, Self::O}
+    }
+}
+
 impl Not for Cell {
     type Output = Self;
 

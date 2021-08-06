@@ -16,3 +16,8 @@ pub fn ask() {
 pub fn get() -> Cell {
     unsafe { impls::get() }
 }
+
+#[inline]
+pub fn turn() -> bool {
+    unsafe { impls::turn() }
+}
