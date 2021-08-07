@@ -18,6 +18,6 @@ pub fn get() -> Cell {
 }
 
 #[inline]
-pub fn turn() -> bool {
+pub fn turn() {
     unsafe { impls::turn() }
 }

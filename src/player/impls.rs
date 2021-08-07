@@ -29,7 +29,7 @@ pub unsafe fn get() -> Cell {
     PLAYER
 }
 
-pub unsafe fn turn() -> bool {
+pub unsafe fn turn() {
     let mut buf = String::new();
 
     if !field::random(field::FullRandomIter::new()).is_found() {
@@ -37,22 +37,39 @@ pub unsafe fn turn() -> bool {
         std::process::exit(0)
     }
 
-    println!("Enter coords(x y, e.g. 0 1) or command(q)");
-    let _ = std::io::stdin().read_line(&mut buf);
-    if buf == "q\n" {
-        println!("Exiting...");
-        std::process::exit(0);
-    }
-    let mut x = buf.chars().nth(0).unwrap() as u8;
-    let mut y = buf.chars().nth(2).unwrap() as u8;
-    if (x < ('0' as u8)) || (x > ('2' as u8)) || (y < ('0' as u8)) || (y > ('2' as u8))  { return false }
+    loop {
+        buf.clear();
+        println!("Enter coords(x y, e.g. 0 1) or command(q)");
+        let _ = std::io::stdin().read_line(&mut buf);
+        if buf.trim() == "q" {
+            println!("Exiting...");
+            std::process::exit(0);
+        }
+        let mut iter = buf.as_str().split_whitespace();
+        let x: u8 = match iter.next() {
+            Some(x) => match x.parse() {
+                Ok(x) => x,
+                Err(_) => continue
+            },
+            None => continue
+        };
 
-    x -= '0' as u8;
-    y -= '0' as u8;
-    if !field::show_changes(x, y, PLAYER) { return false }
-    if field::pattern(PLAYER, PLAYER, PLAYER).is_found() {
-        println!("~~~ You win! ~~~");
-        std::process::exit(0)
+        let y: u8 = match iter.next() {
+            Some(x) => match x.parse() {
+                Ok(x) => x,
+                Err(_) => continue
+            },
+            None => continue
+        };
+
+        if iter.next().is_some() { continue }
+        
+        if !field::show_changes(x, y, PLAYER) { continue }
+        if field::pattern(PLAYER, PLAYER, PLAYER).is_found() {
+            println!("~~~ You win! ~~~");
+            std::process::exit(0)
+        }
+
+        break
     }
-    true
 }
